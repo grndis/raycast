@@ -10,3 +10,6 @@ dist
 # Local Netlify folder
 .netlify
 netlify-proxy/
+debug.log
+
+

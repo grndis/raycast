@@ -80,7 +80,14 @@ class ProxyFetch {
       });
 
       const proxyData = await response.json();
-      console.log(`[PROXY] Response:`, JSON.stringify(proxyData, null, 2));
+      // Don't log the full response for binary data to avoid console spam
+      if (proxyData.info && proxyData.info.headers && proxyData.info.headers['content-type'] && 
+          (proxyData.info.headers['content-type'].includes('application/zip') ||
+           proxyData.info.headers['content-type'].includes('application/octet-stream'))) {
+        console.log(`[PROXY] Response: Binary file, size: ${proxyData.body ? proxyData.body.length : 0} bytes`);
+      } else {
+        console.log(`[PROXY] Response:`, JSON.stringify(proxyData, null, 2));
+      }
 
       if (proxyData.errors) {
         throw new Error("Proxy request failed");
@@ -95,15 +102,33 @@ class ProxyFetch {
         );
       }
 
-      // Parse JSON response if it's JSON
-      let responseData;
-      try {
-        responseData = JSON.parse(proxyData.body);
-      } catch (e) {
-        responseData = proxyData.body;
+      // Return the full proxy response with headers and body
+      const contentType = proxyData.info.headers ? proxyData.info.headers['content-type'] : null;
+      let processedData = proxyData.body;
+      
+      // Handle different content types
+      if (proxyData.isBinary) {
+        // For binary content, the data is base64 encoded - convert back to buffer
+        processedData = Buffer.from(proxyData.body, 'base64');
+      } else if (contentType && contentType.includes('application/json')) {
+        // For JSON content, parse if it's a string
+        if (typeof processedData === 'string') {
+          try {
+            processedData = JSON.parse(processedData);
+          } catch (e) {
+            // If parsing fails, keep as string
+            console.warn('[PROXY] Failed to parse JSON response:', e.message);
+          }
+        }
       }
-
-      return responseData;
+      
+      return {
+        data: processedData,
+        headers: proxyData.info.headers || {},
+        statusCode: proxyData.info.statusCode,
+        contentType: contentType,
+        isBinary: proxyData.isBinary || false
+      };
     } catch (error) {
       throw error;
     }
@@ -117,7 +142,41 @@ class ProxyFetch {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      return await response.json();
+      const contentType = response.headers.get('content-type') || '';
+      
+      // Handle different content types
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
+        return {
+          data: data,
+          headers: Object.fromEntries(response.headers.entries()),
+          statusCode: response.status,
+          contentType: contentType,
+          isBinary: false
+        };
+      } else if (contentType.includes('application/zip') || 
+                 contentType.includes('application/octet-stream') ||
+                 contentType.includes('application/x-zip')) {
+        // For binary data, return as buffer
+        const buffer = await response.buffer();
+        return {
+          data: buffer,
+          headers: Object.fromEntries(response.headers.entries()),
+          statusCode: response.status,
+          contentType: contentType,
+          isBinary: true
+        };
+      } else {
+        // For text content
+        const text = await response.text();
+        return {
+          data: text,
+          headers: Object.fromEntries(response.headers.entries()),
+          statusCode: response.status,
+          contentType: contentType,
+          isBinary: false
+        };
+      }
     } catch (error) {
       throw error;
     }
@@ -127,6 +186,21 @@ class ProxyFetch {
     const proxyMode = process.env.RAYCAST_PROXY_MODE || "auto";
 
     console.log(`[PROXY] Fetching ${url}, proxy mode: ${proxyMode}`);
+    
+    // For extension downloads, always use direct fetch to avoid proxy size limits
+    if (url.includes('raycast-store-extensions.s3') || 
+        url.includes('raycast-extension-downloads.s3') ||
+        url.includes('.zip')) {
+      console.log(`[PROXY] Detected extension download, using direct fetch`);
+      try {
+        const response = await this.directFetch(url, options);
+        console.log(`[PROXY] Direct fetch successful for download`);
+        return response;
+      } catch (error) {
+        console.log(`[PROXY] Direct fetch failed for download: ${error.message}`);
+        throw error;
+      }
+    }
 
     // Always try direct fetch first (works when deployed to Vercel)
     if (proxyMode === "0" || proxyMode === "auto") {
@@ -210,7 +284,20 @@ async function getBackendResponse(
     // Use ProxyFetch instead of direct fetch to handle SSL issues
     const response = await proxyFetch.fetch(fullUrl, options);
 
-    return response;
+    // For backward compatibility, if response has data property, return the structured response
+    // Otherwise return the response as-is (for JSON responses)
+    if (response && typeof response === 'object' && response.hasOwnProperty('data')) {
+      return response;
+    }
+    
+    // Legacy format - wrap in structure for consistency
+    return {
+      data: response,
+      headers: {},
+      statusCode: 200,
+      contentType: 'application/json',
+      isBinary: false
+    };
   } catch (error) {
     console.error("[Raycast Backend] Request error:", {
       url: url.startsWith("/api/v1")

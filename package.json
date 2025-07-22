@@ -1,0 +1,36 @@
+{
+  "name": "raycast-local",
+  "version": "1.0.0",
+  "description": "A local backend implementation for Raycast that provides AI chat completions and translation services",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
+    "health": "curl http://localhost:3000/health"
+  },
+  "keywords": [
+    "raycast",
+    "ai",
+    "openai",
+    "chat",
+    "translation",
+    "api"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "openai": "^4.37.1",
+    "http-proxy-middleware": "^2.0.6",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "pm2": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

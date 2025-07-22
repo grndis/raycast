@@ -6,3 +6,7 @@ dist
 .output
 .env
 .vercel
+
+# Local Netlify folder
+.netlify
+netlify-proxy/

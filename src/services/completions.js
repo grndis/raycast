@@ -1,5 +1,5 @@
-const OpenAI = require('openai');
-const config = require('../config');
+const OpenAI = require("openai");
+const config = require("../config");
 
 async function openAIChatCompletion(req, res) {
   const openai_message = [];
@@ -12,28 +12,28 @@ async function openAIChatCompletion(req, res) {
     if (message.content.system_instructions) {
       openai_message.push({
         role: "system",
-        content: message.content.system_instructions
+        content: message.content.system_instructions,
       });
     }
 
     if (message.content.command_instructions) {
       openai_message.push({
         role: "system",
-        content: message.content.command_instructions
+        content: message.content.command_instructions,
       });
     }
 
     if (body.additional_system_instructions) {
       openai_message.push({
         role: "system",
-        content: body.additional_system_instructions
+        content: body.additional_system_instructions,
       });
     }
 
     if (message.content.text) {
       openai_message.push({
         role: message.author,
-        content: message.content.text
+        content: message.content.text,
       });
     }
 
@@ -44,7 +44,7 @@ async function openAIChatCompletion(req, res) {
 
   const openai = new OpenAI({
     baseURL: config.baseURL,
-    apiKey: config.apiKey
+    apiKey: config.apiKey,
   });
 
   try {
@@ -54,28 +54,29 @@ async function openAIChatCompletion(req, res) {
       temperature,
       stop: null,
       n: 1,
-      messages: openai_message
+      messages: openai_message,
     });
 
     // Set headers for streaming
-    res.setHeader('Content-Type', 'text/plain');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
+    res.setHeader("Content-Type", "text/plain");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
 
     // Stream the response
     for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content || '';
+      const content = chunk.choices[0]?.delta?.content || "";
       if (content) {
         res.write(`data: ${JSON.stringify({ text: content })}\n\n`);
       }
     }
 
     // Send finish signal
-    res.write(`data: ${JSON.stringify({ text: '', finish_reason: 'stop' })}\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ text: "", finish_reason: "stop" })}\n\n`,
+    );
     res.end();
-
   } catch (error) {
-    console.error('OpenAI API error:', error);
+    console.error("OpenAI API error:", error);
     throw new Error(`OpenAI Chat Completions Failed: ${error.message}`);
   }
 }

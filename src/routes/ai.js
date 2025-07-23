@@ -33,7 +33,7 @@ router.get("/models", (req, res) => {
 
   res.json({
     default_models,
-    models,
+    // models,
   });
 });
 
